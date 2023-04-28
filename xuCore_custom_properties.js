@@ -7,19 +7,23 @@
  * @author XiaoxuStudio
  *
  * @help 小徐自定义属性插件，由小徐工作室——徐然制作
- * 当前为版本：0.1.3
+ * 当前为版本：0.1.4
  * 
- * 版本0.1.3
+ * 
+ * 版本0.1.4（2023.4.28）
+ * 1.新增两处位置显示
+ * 
+ * 版本0.1.3（2022-9-9）
  * 1.新增属性值类型：字符串数组，使用英文逗号分割数组
  * 
- * 版本0.1.2
+ * 版本0.1.2（2022-9-9）
  * 1.修复自增、自减无效的bug
  * 
- * 版本0.1.1
+ * 版本0.1.1（2022-9-9）
  * 1.修复状态显示生效
  * 2.添加更新历史
  * 
- * 版本0.1
+ * 版本0.1 （2022-9-8）
  * 1.增加自定义属性功能
  * 2.增加插件说明介绍
  * 3.插件框架构建
@@ -148,6 +152,61 @@
  * @desc  此处标识对应自定义属性标识，如需显示多个请用英文逗号分割
  * @default jj
  * 
+ * 
+ * @param fgx
+ * @text ——————————分割线———————————
+ * @parent 其他设置
+ * 
+ *  @param oncheck1
+ * @text 启用状态标签显示1
+ * @parent 其他设置
+ * @type boolean
+ * @desc  在上面属性下显示一个属性
+ * NO - false     YES - true
+ * @default false
+ * 
+ * @param onvalue1
+ * @text 属性标识1
+ * @parent 其他设置
+ * @type string
+ * @desc  此处标识对应自定义属性标识，如需显示多个请用英文逗号分割
+ * @default jj
+ * 
+ * @param onvalue_offset1
+ * @text 属性标识1——y偏移
+ * @parent 其他设置
+ * @type Number
+ * @desc  此处标识对应属性标识1的y轴偏移
+ * @default -10
+ * 
+ * 
+ * @param fgx
+ * @text ——————————分割线———————————
+ * @parent 其他设置
+ *  
+ * 
+ * @param oncheck_ac
+ * @text 启用角色状态标签显示
+ * @parent 其他设置
+ * @type boolean
+ * @desc  在角色职位旁边显示一个属性
+ * NO - false     YES - true
+ * @default false
+ * 
+ * @param onvalue_ac
+ * @text 角色属性标识
+ * @parent 其他设置
+ * @type string
+ * @desc  此处标识对应自定义属性标识，如需显示多个请用英文逗号分割
+ * @default jj
+ * 
+ * @param onvalue_ac_offsetx
+ * @text 角色状态标签——x偏移
+ * @parent 其他设置
+ * @type Number
+ * @desc  此处标识对应角色状态标签的x轴偏移
+ * @default 60
+ * 
  */
 
 
@@ -174,7 +233,7 @@ XuCore.xlog = function (te) {
     console.log("小徐核心(XuCore):" + te);
 }
 
-var version = "0.1.3";
+var version = "0.1.4";
 XuCore.xlog("版本：" + version);
 
 XuCore.tool.contains = function (arr, str) {
@@ -192,7 +251,7 @@ XuCore.tool.contains = function (arr, str) {
 // ————————————————————XU_Core———————————————————————————
 //定义Xu_core工具类
 // ————————————————————XU_Core———————————————————————————
-var x_actor=function(actorId){
+var x_actor = function (actorId) {
     var actor_obj = $gameActors.actor(actorId);
     console.log(actor_obj)
     return actor_obj;
@@ -207,12 +266,33 @@ Window_Status.prototype.drawBasicInfo = function (x, y) {
     var lineHeight = this.lineHeight();
     this.drawActorLevel(this._actor, x, y + lineHeight * 0);
 };
+XuCore.tool.DAName = Window_Base.prototype.drawActorClass;
+Window_Base.prototype.drawActorClass = function(actor, x, y, width) {
+    XuCore.tool.DAName.call(this, actor, x, y, width);
+    var text_lo = ""
+    var next_position = { x: x, y: y }
+    // 角色属性
+    var offset1=parseFloat(localdata["onvalue_ac_offsetx"])
+    if (localdata["oncheck_ac"] == "true") {
+        var lo_data = localdata["onvalue_ac"].split(",");
+        for (var i = 0; i < lo_data.length; i++) {
+            text_lo += actor._Var[lo_data[i]].value;
+        }
+        var text_size = text_lo.length * this.lineHeight()
+        if (text_size > 100) {
+            text_size = text_size / 2;
+        }
+        next_position.x = next_position.x + this.lineHeight()+offset1
+        this.drawText(text_lo, next_position.x, next_position.y, text_size, 'right');
+        text_lo = undefined;
+    }
+};
 XuCore.tool.DALevel = Window_Base.prototype.drawActorLevel;
 Window_Base.prototype.drawActorLevel = function (actor, x, y) {
     XuCore.tool.DALevel.call(this, actor, x, y);
     var text_lo = ""
-    console.log(localdata["oncheck"])
-    if (localdata["oncheck"]=="true") {
+    var next_position = { x: x, y: y }
+    if (localdata["oncheck"] == "true") {
         var lo_data = localdata["onvalue"].split(",");
         for (var i = 0; i < lo_data.length; i++) {
             text_lo += actor._Var[lo_data[i]].value;
@@ -221,9 +301,28 @@ Window_Base.prototype.drawActorLevel = function (actor, x, y) {
         if (text_size > 100) {
             text_size = text_size / 2;
         }
-        this.drawText(text_lo, x, y + this.lineHeight(), text_size, 'left');
+        next_position.y = next_position.y + this.lineHeight()
+        this.drawText(text_lo, next_position.x, next_position.y, text_size, 'left');
+        text_lo = "";
+    }
+    // 属性标识1
+    var offset1=parseFloat(localdata["onvalue_offset1"])
+    if (localdata["oncheck1"] == "true") {
+        var lo_data = localdata["onvalue1"].split(",");
+        for (var i = 0; i < lo_data.length; i++) {
+            text_lo += actor._Var[lo_data[i]].value;
+        }
+        var text_size = text_lo.length * this.lineHeight()
+        if (text_size > 100) {
+            text_size = text_size / 2;
+        }
+        next_position.y = next_position.y + this.lineHeight()+offset1
+        this.drawText(text_lo, next_position.x, next_position.y, text_size, 'left');
         text_lo = undefined;
     }
+
+    
+
 };
 
 // ————————————————————XU_Core———————————————————————————
@@ -234,7 +333,7 @@ XuCore.tool.iMembers = Game_Actor.prototype.initMembers;
 Game_Actor.prototype.initMembers = function () {
     XuCore.tool.iMembers.call(this);
     this._Var = {};
-     this.initvarlist();
+    this.initvarlist();
 }
 
 XuCore.tool.Gsetup = Game_Actor.prototype.setup;
@@ -328,12 +427,12 @@ Window_Base.prototype.convertEscapeCharacters = function (text) {
         text = text.replace(/\x1bXUG\[((\d+),(([a-zA-Z0-9]+)(\{[0-9]\})))\]/gi, function () {
             var lo_data = arguments[1].split(",");
             // var the_value=;
-            var the_index=lo_data[1].substring(lo_data[1].indexOf("{")+1,lo_data[1].indexOf("}")) //截取
-            var the_tag=lo_data[1].match("(.+)\{")[1];
-            var the_te=""
-            if(lo_data[1].match(the_tag)!=null){
+            var the_index = lo_data[1].substring(lo_data[1].indexOf("{") + 1, lo_data[1].indexOf("}")) //截取
+            var the_tag = lo_data[1].match("(.+)\{")[1];
+            var the_te = ""
+            if (lo_data[1].match(the_tag) != null) {
                 var local_var = $gameActors.actor(lo_data[0])[the_tag.toString()].value.split(",");
-                the_te=local_var[the_index];
+                the_te = local_var[the_index];
             }
             return the_te;
         }.bind(this));
