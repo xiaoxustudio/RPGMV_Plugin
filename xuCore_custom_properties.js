@@ -44,7 +44,6 @@
  * 
  * 
  * 字符串数组
- * 
  * 在属性值里添加字符串数组
  * 在对话框里使用\XUG[角色id,属性标签{数组索引}]
  * 
@@ -55,11 +54,12 @@
  * 在对话框使用\XUG[1,tag{2}] ————>提示很好
  * 
  * 其他对象添加属性：
- * 在备注上使用<@X...:value>
- * 必须使用@X开头，否则不会被解析
+ * 在备注上使用<$X...:value>
+ * 必须使用$X（大写X）开头，否则不会被解析
  * value默认会被解析成string字符串，(value)将会被解析为js值
- * <@Xquanlity:(10)> --> 将会被解析为数字10
- * <@Xquanlity:10> --> 将会被解析为字符串10
+ * <$Xquanlity:(10)> --> 将会被解析为数字10
+ * <$Xquanlity:10> --> 将会被解析为字符串10
+ * 
  * —————————————————————————Xu_core—————————————————————————
  * 
  * ▁▂▃▄▅▆▇插件指令
@@ -608,7 +608,7 @@ DataManager.onLoad = function (object) {
                 if (!item.hasOwnProperty("_xrcustom_p")) { item._xrcustom_p = {} }
                 let attrs = item.meta || {}
                 for (let attr in attrs) {
-                    if (attr.startsWith("@X")) {
+                    if (attr.startsWith("$X")) {
                         let key = attr.slice(2)
                         let val = attrs[attr]
                         let match = val.match(/^\(([^\)]+)\)$/i)
