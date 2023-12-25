@@ -7,7 +7,11 @@
  * @author XiaoxuStudio
  *
  * @help 徐然自定义属性插件，由小徐工作室——徐然制作
- * 当前为版本：0.1.5
+ * 当前为版本：0.1.51
+ * 
+ * 版本0.1.51（2023.12.20）
+ * 1.增加同步属性：当一个自定义属性设置为同步属性时
+ * 则属性会在装备和脱下时减少对应角色的相应数值
  * 
  * 版本0.1.5（2023.12.14）
  * 1.增加可对部分对象自定义属性
@@ -60,6 +64,10 @@
  * <$Xquanlity:(10)> --> 将会被解析为数字10
  * <$Xquanlity:10> --> 将会被解析为字符串10
  * 
+ * 同步属性：
+ * 在备注上使用<$X...:value,true>
+ * 则当前属性会作为同步属性
+ * 属性会在装备和脱下时减少对应角色的相应数值
  * —————————————————————————Xu_core—————————————————————————
  * 
  * ▁▂▃▄▅▆▇插件指令
@@ -263,8 +271,6 @@ XuCore.Param.slist = eval(localdata['SXlist']);
 XuCore.Param.tlist = eval(localdata['SXtag']);
 XuCore.Param.vlist = eval(localdata['SXvalue']);
 
-XuCore.tool.varlist = XuCore.tool.varlist || {};//总属性存储
-
 XuCore.xlog = function (te) {
     console.log("小徐核心(XuCore):" + te);
 }
@@ -298,6 +304,11 @@ var change = window.change = function (obj, id, prototype, val) {
             let match = val.match(/^\(([^\)]+)\)$/i)
             if (match) { val = new Function("return " + match[1])() }
             obj[id]._xrcustom_p[prototype] = val
+        }
+        if (obj[id]._syncvarlist.hasOwnProperty(prototype)) {
+            let match = val.match(/^\(([^\)]+)\)$/i)
+            if (match) { val = new Function("return " + match[1])() }
+            obj[id]._syncvarlist[prototype] = val
         }
     }
 }
@@ -399,9 +410,6 @@ Window_Base.prototype.drawActorLevel = function (actor, x, y) {
         this.drawText(text_lo, next_position.x, next_position.y, text_size, 'left');
         text_lo = undefined;
     }
-
-
-
 };
 
 // ————————————————————XU_Core———————————————————————————
@@ -414,7 +422,6 @@ Game_Actor.prototype.initMembers = function () {
     this._Var = {};
     this.initvarlist();
 }
-
 XuCore.tool.Gsetup = Game_Actor.prototype.setup;
 Game_Actor.prototype.setup = function (actorId) {
     XuCore.tool.Gsetup.call(this, actorId);
@@ -429,15 +436,40 @@ Game_Actor.prototype.getVar = function (arr) {
 }
 
 
-Game_Actor.prototype.setVar = function (arr, value) {
+Game_Actor.prototype.setVar = function (arr, value, ins = false) {
     if (value && arr && this._Var[arr] != null) {
         this._Var[arr].value = value;
     }
     return true;
 }
-
-
-Game_Actor.prototype.initvarlist = function (actorId) {
+XuCore.tool.initEquips = Game_Actor.prototype.initEquips
+Game_Actor.prototype.initEquips = function (equips) {
+    XuCore.tool.initEquips.call(this, equips)
+    var slots = this.equipSlots();
+    var maxSlots = slots.length;
+    for (var j = 0; j < this.equips().length; j++) {
+        if (j < maxSlots) {
+            if (this.equips()[j] && this.equips()[j]._syncvarlist) {
+                if (Object.keys(this.equips()[j]._syncvarlist).length > 0) {
+                    for (let i in this.equips()[j]._syncvarlist) {
+                        let val = this.equips()[j]._syncvarlist[i]
+                        if (val) {
+                            try {
+                                let vals = parseFloat(val)
+                                this.setVar(i, parseFloat(this.getVar(i).value) + vals)
+                            } catch (e) {
+                                this.setVar(i, parseFloat(this.getVar(i).value) + val)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    this.releaseUnequippableItems(true);
+    this.refresh();
+};
+Game_Actor.prototype.initvarlist = function () {
     this._Var_lo = {};
     this._Var = {};
     // 加载属性
@@ -455,6 +487,42 @@ Game_Actor.prototype.initvarlist = function (actorId) {
         }
     }
 }
+
+XuCore.tool.tradeItemWithParty = Game_Actor.prototype.tradeItemWithParty
+Game_Actor.prototype.tradeItemWithParty = function (newItem, oldItem) {
+    let res = XuCore.tool.tradeItemWithParty.call(this, newItem, oldItem)
+    if (newItem && newItem._syncvarlist) {
+        if (Object.keys(newItem._syncvarlist).length > 0) {
+            for (let i in newItem._syncvarlist) {
+                let val = newItem._syncvarlist[i]
+                if (val) {
+                    try {
+                        let vals = parseFloat(val)
+                        this.setVar(i, parseFloat(this.getVar(i).value) + vals)
+                    } catch (e) {
+                        this.setVar(i, parseFloat(this.getVar(i).value) + val)
+                    }
+                }
+            }
+        }
+    }
+    if (oldItem && oldItem._syncvarlist) {
+        if (Object.keys(oldItem._syncvarlist).length > 0) {
+            for (let i in oldItem._syncvarlist) {
+                let val = oldItem._syncvarlist[i]
+                if (val) {
+                    try {
+                        let vals = parseFloat(val)
+                        this.setVar(i, parseFloat(this.getVar(i).value) - vals)
+                    } catch (e) {
+                        this.setVar(i, parseFloat(this.getVar(i).value) + val)
+                    }
+                }
+            }
+        }
+    }
+    return res
+};
 
 
 
@@ -486,10 +554,6 @@ if (localdata.SXstate) {
     if (bOk) eval(evalStr);
     i = bOk = evalStr = param = param1 = undefined;
 }
-
-
-
-
 
 //处理对话框变量
 XuCore.tool.WBase = Window_Base.prototype.convertEscapeCharacters;
@@ -526,7 +590,11 @@ Window_Base.prototype.convertEscapeCharacters = function (text) {
         }.bind(this));
         text = text.replace(/\x1bXUG\[((\d+),([a-zA-Z0-9]+))\]/gi, function () {
             var lo_data = arguments[1].split(",");
-            return $gameActors.actor(lo_data[0])[lo_data[1]].value;
+            let res = $gameActors.actor(lo_data[0])[lo_data[1]]
+            if (res) {
+                return res.value;
+            }
+            return arguments[1];
         }.bind(this));
         text = text.replace(/\x1bXUG\[((\d+),(([a-zA-Z0-9]+)(\{[0-9]\})))\]/gi, function () {
             var lo_data = arguments[1].split(",");
@@ -602,30 +670,88 @@ Game_Interpreter.prototype.pluginCommand = function (command, args) {
 XuCore.tool.onload = DataManager.onLoad
 DataManager.onLoad = function (object) {
     XuCore.tool.onload.call(this, object)
-    const complite = (obj) => {
+    const complite = (obj, type) => {
+        let index = 0
         for (let item of obj) {
             if (item) {
                 if (!item.hasOwnProperty("_xrcustom_p")) { item._xrcustom_p = {} }
                 let attrs = item.meta || {}
                 for (let attr in attrs) {
+                    // 自定义
                     if (attr.startsWith("$X")) {
+                        // 加载其他
                         let key = attr.slice(2)
                         let val = attrs[attr]
-                        let match = val.match(/^\(([^\)]+)\)$/i)
-                        if (match) { item._xrcustom_p[key] = new Function("return " + match[1])() } else { item._xrcustom_p[key] = val }
+                        // 判断属性是否有效
+                        if (val) {
+                            // 自定义属性
+                            let match = String(val).match(/^\(([^\)]+)\)$/i)
+                            if (match) { item._xrcustom_p[key] = new Function("return " + match[1])() } else { item._xrcustom_p[key] = val }
+                        }
                     }
                 }
             }
+            index++
         }
     }
+    if ($dataWeapons && $dataWeapons.length > 0 && !$dataWeapons.init) { complite($dataWeapons, "Weapons"); $dataWeapons.init = true }
+    if ($dataSkills && $dataSkills.length > 0 && !$dataSkills.init) { complite($dataSkills, "Skills"); $dataSkills.init = true }
+    if ($dataItems && $dataItems.length > 0 && !$dataItems.init) { complite($dataItems, "Items"); $dataItems.init = true }
+    if ($dataStates && $dataStates.length > 0 && !$dataStates.init) { complite($dataStates, "States"); $dataStates.init = true }
+    if ($dataArmors && $dataArmors.length > 0 && !$dataArmors.init) { complite($dataArmors, "Armors"); $dataArmors.init = true }
+    if ($dataClasses && $dataClasses.length > 0 && !$dataClasses.init) { complite($dataClasses, "Classes"); $dataClasses.init = true }
+    if ($dataEnemies && $dataEnemies.length > 0 && !$dataEnemies.init) { complite($dataEnemies, "Enemies"); $dataEnemies.init = true }
+};
 
-    if ($dataWeapons && $dataWeapons.length > 0 && !$dataWeapons.init) { complite($dataWeapons); $dataWeapons.init = true }
-    if ($dataSkills && $dataSkills.length > 0 && !$dataSkills.init) { complite($dataSkills); $dataSkills.init = true }
-    if ($dataItems && $dataItems.length > 0 && !$dataItems.init) { complite($dataItems); $dataItems.init = true }
-    if ($dataStates && $dataStates.length > 0 && !$dataStates.init) { complite($dataStates); $dataStates.init = true }
-    if ($dataArmors && $dataArmors.length > 0 && !$dataArmors.init) { complite($dataArmors); $dataArmors.init = true }
-    if ($dataClasses && $dataClasses.length > 0 && !$dataClasses.init) { complite($dataClasses); $dataClasses.init = true }
-    if ($dataEnemies && $dataEnemies.length > 0 && !$dataEnemies.init) { complite($dataEnemies); $dataEnemies.init = true }
+// 加载同步属性
+XuCore.tool.extractMetadata = DataManager.extractMetadata
+DataManager.extractMetadata = function (data) {
+    XuCore.tool.extractMetadata.call(this, data)
+    var re = /<([^<>:]+)(:?)([^>]*)>/g;
+    for (; ;) {
+        var match = re.exec(data.note);
+        if (match) {
+            if (/^\<\$X(.+):(.+),(.+)\>/i.test(String(match[0]))) {
+                if (!data.hasOwnProperty("_syncvarlist")) {
+                    data._syncvarlist = new Proxy({}, {
+                        get(o, p) {
+                            return o[p]
+                        },
+                        set(o, p, v) {
+                            data._xrcustom_p[p] = v
+                            o[p] = v
+                            return true
+                        },
+                    })
+                }
+                let m = String(match[0]).match(/^\<\$X(.+):(.+),(.+)\>/i)
+                data.meta["$X" + m[1]] = m[2];
+                // 判断属性是否有效
+                let key = m[1]
+                let val = m[2]
+                if (val) {
+                    let match = String(val).match(/^\(([^\)]+)\)$/i)
+                    if (match) {
+                        Object.defineProperty(data._syncvarlist, key, {
+                            value: new Function("return " + match[1])(),
+                            enumerable: true,
+                            writable: true,
+                            configurable: true
+                        })
+                    } else {
+                        Object.defineProperty(data._syncvarlist, key, {
+                            value: val,
+                            enumerable: true,
+                            writable: true,
+                            configurable: true
+                        })
+                    }
+                }
+            }
+        } else {
+            break;
+        }
+    }
 };
 
 // 加载其他对象笔记属性
@@ -647,33 +773,80 @@ DataManager.loadGameWithoutRescue = function (savefileId) {
             }
         }
     }
+    const _unpack_s = (obj, type, arr) => {
+        for (let ind in obj) {
+            let item = obj[ind]
+            if (item) {
+                let attrs = item._syncvarlist || {}
+                for (let key in attrs) {
+                    let tr = arr[ind]
+                    if (tr[key]) {
+                        item._syncvarlist[key] = tr[key]
+                    }
+                }
+                item._syncvarlist = new Proxy(attrs, {
+                    get(o, p) {
+                        return o[p]
+                    },
+                    set(o, p, v) {
+                        item._xrcustom_p[p] = v
+                        o[p] = v
+                        return true
+                    },
+                })
+            }
+        }
+    }
     // 加载对象属性
     let a = 'xrobj%1.xrsave'.format(savefileId);
     let a_path = StorageManager.localFileDirectoryPath() + a
     if (fs.existsSync(a_path)) {
         // 存在就加载
         let jsonp = JsonEx.parse(LZString.decompressFromBase64(fs.readFileSync(a_path, { encoding: 'utf8' })))
-        for (let item in jsonp) {
+        for (let item in jsonp["_xc"]) {
             if (item == "weapon") {
-                _unpack($dataWeapons, item, jsonp[item])
+                _unpack($dataWeapons, item, jsonp["_xc"][item])
             }
             if (item == "skill") {
-                _unpack($dataSkills, item, jsonp[item])
+                _unpack($dataSkills, item, jsonp["_xc"][item])
             }
             if (item == "item") {
-                _unpack($dataItems, item, jsonp[item])
+                _unpack($dataItems, item, jsonp["_xc"][item])
             }
             if (item == "state") {
-                _unpack($dataStates, item, jsonp[item])
+                _unpack($dataStates, item, jsonp["_xc"][item])
             }
             if (item == "armor") {
-                _unpack($dataArmors, item, jsonp[item])
+                _unpack($dataArmors, item, jsonp["_xc"][item])
             }
             if (item == "class") {
-                _unpack($dataClasses, item, jsonp[item])
+                _unpack($dataClasses, item, jsonp["_xc"][item])
             }
             if (item == "enemy") {
-                _unpack($dataEnemies, item, jsonp[item])
+                _unpack($dataEnemies, item, jsonp["_xc"][item])
+            }
+        }
+        for (let item in jsonp["_xs"]) {
+            if (item == "weapon") {
+                _unpack_s($dataWeapons, item, jsonp["_xs"][item])
+            }
+            if (item == "skill") {
+                _unpack_s($dataSkills, item, jsonp["_xs"][item])
+            }
+            if (item == "item") {
+                _unpack_s($dataItems, item, jsonp["_xs"][item])
+            }
+            if (item == "state") {
+                _unpack_s($dataStates, item, jsonp["_xs"][item])
+            }
+            if (item == "armor") {
+                _unpack_s($dataArmors, item, jsonp["_xs"][item])
+            }
+            if (item == "class") {
+                _unpack_s($dataClasses, item, jsonp["_xs"][item])
+            }
+            if (item == "enemy") {
+                _unpack_s($dataEnemies, item, jsonp["_xs"][item])
             }
         }
     }
@@ -689,13 +862,25 @@ StorageManager.backup = function (savefileId) {
         for (let ind in obj) {
             let item = obj[ind]
             if (item) {
-                if (!sdata.hasOwnProperty(type)) { sdata[type] = {} }
-                if (!sdata[type].hasOwnProperty(ind)) { sdata[type][ind] = {} }
+                if (!sdata.hasOwnProperty("_xc")) { sdata["_xc"] = {} }
+                if (!sdata.hasOwnProperty("_xs")) { sdata["_xs"] = {} }
+                if (!sdata._xc.hasOwnProperty(type)) { sdata["_xc"][type] = {} }
+                if (!sdata._xs.hasOwnProperty(type)) { sdata["_xs"][type] = {} }
+                if (!sdata._xc[type].hasOwnProperty(ind)) { sdata._xc[type][ind] = {} }
                 let attrs = item._xrcustom_p || {}
                 if (Object.keys(attrs).length > 0) {
                     for (let key in attrs) {
                         let val = attrs[key]
-                        sdata[type][ind][key] = val
+                        sdata._xc[type][ind][key] = val
+                    }
+                }
+                // 同步
+                if (!sdata._xs[type].hasOwnProperty(ind)) { sdata._xs[type][ind] = {} }
+                attrs = item._syncvarlist || {}
+                if (Object.keys(attrs).length > 0) {
+                    for (let key in attrs) {
+                        let val = attrs[key]
+                        sdata._xs[type][ind][key] = val
                     }
                 }
             }
